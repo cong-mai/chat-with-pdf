@@ -91,38 +91,38 @@ def create_pdf_html(file_path: str | None):
 
 def process_file(file_path: str | None):
     if file_path is None:
-        yield "Please upload a PDF file first.", ""
+        yield "Add a PDF before reading.", ""
         return
 
     file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
     if file_size_mb > MAX_FILE_SIZE_MB:
         yield (
-            f"File is too large ({file_size_mb:.1f} MB). "
-            f"Maximum allowed size is {MAX_FILE_SIZE_MB:.0f} MB.",
+            f"That file is too large ({file_size_mb:.1f} MB). "
+            f"The limit is {MAX_FILE_SIZE_MB:.0f} MB.",
             "",
         )
         return
 
     try:
-        yield "Reading PDF file...", ""
+        yield "Opening the file…", ""
         pdf_html = create_pdf_html(file_path)
-        yield "Processing PDF file...", pdf_html
+        yield "Reading through it…", pdf_html
 
         documents = read_pdf_content(file_path)
         if not documents:
-            yield "Error processing PDF file.", ""
+            yield "Couldn't read that file.", ""
             return
 
         chunks = chunk_document(documents, source_id=os.path.basename(file_path))
 
-        yield "Creating vector store...", pdf_html
+        yield "Building the index…", pdf_html
         vectorstore = get_or_create_vectorstore(file_path)
-        yield "Adding documents to vector store...", pdf_html
+        yield "Filing the pages…", pdf_html
         vectorstore.add_documents(chunks)
 
-        yield "PDF file processed successfully.", pdf_html
+        yield "Ready. Ask away.", pdf_html
     except Exception as e:
-        yield f"Error processing file: {str(e)}", ""
+        yield f"Couldn't read that file: {str(e)}", ""
 
 
 load_dotenv()
@@ -133,6 +133,14 @@ if OPENAI_API_KEY is None:
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 
+def _entry(role: str, content: str) -> dict:
+    # Prefixing the actual message content (rather than styling it in via
+    # CSS) keeps the Q/A marker legible even if the chatbot's internal
+    # markup changes between Gradio versions.
+    prefix = "Q  " if role == "user" else "A  "
+    return {"role": role, "content": f"{prefix}{content}"}
+
+
 def chat_with_pdf(file_path: str | None, message: str, history):
     global _last_chat_time
 
@@ -141,33 +149,33 @@ def chat_with_pdf(file_path: str | None, message: str, history):
         return
 
     if not file_path:
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": "Please upload and process a PDF file first."})
+        history.append(_entry("user", message))
+        history.append(_entry("assistant", "Add and read a PDF before asking questions."))
         yield "", history
         return
 
     now = time.monotonic()
     if now - _last_chat_time < MIN_SECONDS_BETWEEN_CHATS:
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": "You're sending messages too quickly — please wait a moment and try again."})
+        history.append(_entry("user", message))
+        history.append(_entry("assistant", "Give it a moment before asking again."))
         yield "", history
         return
     _last_chat_time = now
 
     try:
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": "Processing..."})
+        history.append(_entry("user", message))
+        history.append(_entry("assistant", "Reading through the document…"))
         yield "", history
 
         vectorstore = get_or_create_vectorstore(file_path)
         results = vectorstore.similarity_search(query=message, k=3)
 
         if not results:
-            history[-1] = {"role": "assistant", "content": "No relevant data found in the PDF."}
+            history[-1] = _entry("assistant", "Nothing in the document answers that.")
             yield "", history
             return
 
-        history[-1] = {"role": "assistant", "content": "Data found in VectorDB!"}
+        history[-1] = _entry("assistant", "Found the relevant passage…")
         yield "", history
 
         CONTEXT = ""
@@ -190,32 +198,125 @@ def chat_with_pdf(file_path: str | None, message: str, history):
         )
         print(response.choices[0].message.content)
 
-        history[-1] = {"role": "assistant", "content": response.choices[0].message.content}
+        history[-1] = _entry("assistant", response.choices[0].message.content)
         yield "", history
     except Exception as e:
         print('error', e)
-        history.append({"role": "assistant", "content": f"Error: {str(e)}"})
+        history.append(_entry("assistant", f"Something went wrong: {str(e)}"))
         yield "", history
+
+
+# "Reading Room" theme — a two-pane reading desk (document + notes) styled
+# like paper and ledger rules rather than the rounded-card/shadow SaaS kit.
+# Palette: Ledger #E3DECD (page), Card #FBF9F2 (surfaces), Ink #23281F
+# (text), Pencil #A8332E (primary action), Stamp #2E4A5E (focus/links),
+# Rule #C7BFA4 (hairlines).
+THEME = gr.themes.Base(
+    font=[gr.themes.GoogleFont("IBM Plex Sans"), "sans-serif"],
+    font_mono=[gr.themes.GoogleFont("IBM Plex Mono"), "monospace"],
+    radius_size=gr.themes.sizes.radius_sm,
+).set(
+    body_background_fill="#E3DECD",
+    background_fill_primary="#FBF9F2",
+    background_fill_secondary="#FBF9F2",
+    border_color_primary="#C7BFA4",
+    block_background_fill="#FBF9F2",
+    block_border_color="#C7BFA4",
+    block_label_text_color="#23281F",
+    body_text_color="#23281F",
+    button_primary_background_fill="#A8332E",
+    button_primary_background_fill_hover="#8C2A26",
+    button_primary_text_color="#FBF9F2",
+    button_secondary_background_fill="#FBF9F2",
+    button_secondary_border_color="#C7BFA4",
+    button_secondary_text_color="#23281F",
+    input_background_fill="#FBF9F2",
+    input_border_color="#C7BFA4",
+    block_radius="3px",
+    button_large_radius="3px",
+    button_small_radius="3px",
+    input_radius="3px",
+)
+
+HEAD = """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@1,500&display=swap" rel="stylesheet">
+"""
+
+CSS = """
+#header .headline {
+    font-family: 'Newsreader', serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 2.25rem;
+    color: #23281F;
+    margin: 0 0 0.2em 0;
+    text-align: left;
+}
+#header .subline {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 1rem;
+    color: #55503f;
+    margin: 0 0 1.5rem 0;
+    text-align: left;
+}
+#notes-pane {
+    border-left: 1px solid #C7BFA4;
+    padding-left: 1.5rem !important;
+}
+#chatbot {
+    --radius-md: 3px;
+    --shadow-drop: none;
+    --color-accent-soft: #FBF9F2;
+}
+#chatbot .bot-row, #chatbot .user-row {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+#chatbot .message-row {
+    border-bottom: 1px solid #C7BFA4;
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+#chatbot .message-row:last-child {
+    border-bottom: none;
+}
+#chatbot .user, #chatbot .user *,
+#chatbot .bot, #chatbot .bot * {
+    text-align: left !important;
+}
+.gradio-container button:focus-visible,
+.gradio-container input:focus-visible,
+.gradio-container textarea:focus-visible {
+    outline: 2px solid #2E4A5E !important;
+    outline-offset: 1px;
+}
+"""
 
 
 def create_ui():
     with gr.Blocks() as demo:
-        gr.Markdown("# Chat with PDF")
+        with gr.Column(elem_id="header"):
+            gr.HTML(
+                '<div class="headline">Read together.</div>'
+                '<div class="subline">Ask your document things.</div>'
+            )
 
         with gr.Row():
-            with gr.Column(scale=1):
+            with gr.Column(scale=1, elem_id="doc-pane"):
                 file_input = gr.File(
-                    label="Upload PDF",
+                    label="Add a PDF",
                     file_types=[".pdf"],
                 )
-                process_button = gr.Button("Process PDF")
-                status_output = gr.Textbox(label="Status")
-                pdf_preview = gr.HTML(label="PDF Preview")
+                process_button = gr.Button("Read this PDF")
+                status_output = gr.Textbox(label="Status", interactive=False)
+                pdf_preview = gr.HTML(label="Preview")
 
-            with gr.Column(scale=1):
-                chatbot = gr.Chatbot(height=450)
-                message_box = gr.Textbox(label="Ask a question about your PDF")
-                submit_btn = gr.Button("Chat", variant="primary")
+            with gr.Column(scale=1, elem_id="notes-pane"):
+                chatbot = gr.Chatbot(height=450, elem_id="chatbot", layout="panel")
+                message_box = gr.Textbox(label="Ask something about the document")
+                submit_btn = gr.Button("Ask", variant="primary")
 
         process_button.click(
             fn=process_file,
@@ -240,4 +341,4 @@ def create_ui():
 
 if __name__ == "__main__":
     demo = create_ui()
-    demo.launch()
+    demo.launch(theme=THEME, css=CSS, head=HEAD)
