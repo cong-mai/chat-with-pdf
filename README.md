@@ -1,12 +1,13 @@
-# Chat with PDF — RAG Application
+# Read together — Chat with PDF
 
-A Retrieval-Augmented Generation (RAG) app that lets you upload a PDF and chat with its contents. Built with Gradio, LangChain, ChromaDB, and OpenAI.
+A Retrieval-Augmented Generation (RAG) app that lets you upload a PDF and ask it questions, grounded in its actual content. A React frontend talks to a small Flask API that does the indexing and answering.
 
 ---
 
 ## Features
 
-- Upload any PDF and ask questions about it
+- Accounts with email/password login and admin/user roles
+- Drop in a PDF and ask questions about it — each user only sees their own documents
 - Answers are grounded in the document — no hallucination
 - Powered by `gpt-4o-mini` for responses and `all-MiniLM-L6-v2` for embeddings
 - Vector store persists between sessions (ChromaDB)
@@ -18,7 +19,10 @@ A Retrieval-Augmented Generation (RAG) app that lets you upload a PDF and chat w
 
 | Layer | Tool |
 |---|---|
-| UI | Gradio |
+| Frontend | React (Vite) |
+| API | Flask |
+| Auth | JWT (`PyJWT`) + hashed passwords (`werkzeug.security`) |
+| Accounts DB | MongoDB (`pymongo`) |
 | LLM | OpenAI `gpt-4o-mini` |
 | Embeddings | HuggingFace `all-MiniLM-L6-v2` |
 | Vector DB | ChromaDB (local) |
@@ -27,10 +31,30 @@ A Retrieval-Augmented Generation (RAG) app that lets you upload a PDF and chat w
 
 ---
 
+## Project Structure
+
+```
+.
+├── backend/
+│   ├── app.py            # Flask API — auth, upload/index a PDF, answer questions
+│   └── create_admin.py   # CLI: create or promote an account to admin
+├── frontend/             # React (Vite) UI
+│   ├── index.html
+│   └── src/
+├── requirements.txt      # Python (backend) dependencies
+├── .env                  # Your API keys/secrets (not committed)
+├── uploads/               # Uploaded PDFs (not committed)
+└── data/                  # ChromaDB vector store (not committed)
+```
+
+---
+
 ## Prerequisites
 
 - Python 3.10+
+- Node.js 18+
 - An [OpenAI API key](https://platform.openai.com/account/api-keys)
+- A MongoDB connection string (e.g. a free [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register) cluster)
 
 ---
 
@@ -41,13 +65,16 @@ A Retrieval-Augmented Generation (RAG) app that lets you upload a PDF and chat w
 git clone https://github.com/your-username/your-repo-name.git
 cd your-repo-name
 
-# 2. Create a virtual environment
+# 2. Backend: create a virtual environment and install Python deps
 python -m venv .venv
 source .venv/bin/activate        # macOS / Linux
 .venv\Scripts\activate           # Windows
-
-# 3. Install dependencies
 pip install -r requirements.txt
+
+# 3. Frontend: install Node deps
+cd frontend
+npm install
+cd ..
 ```
 
 ---
@@ -58,69 +85,49 @@ Create a `.env` file in the project root:
 
 ```env
 OPENAI_API_KEY=sk-...your-key-here...
+MONGODB_URI=mongodb+srv://...your-connection-string...
 
-# Optional — basic abuse/cost guards (defaults shown)
+# Required — generate with: python -c "import secrets; print(secrets.token_hex(32))"
+JWT_SECRET=...a-long-random-string...
+
+# Optional (defaults shown)
+MONGODB_DB_NAME=reading_room
+JWT_EXPIRES_HOURS=24
 MAX_FILE_SIZE_MB=20
 MIN_SECONDS_BETWEEN_CHATS=2
 ```
 
 > **Never commit your `.env` file.** It is already listed in `.gitignore`.
 
+Then create your admin account:
+
+```bash
+python backend/create_admin.py you@example.com yourpassword
+```
+
+Anyone else can sign up for a regular account from the app itself — `/api/auth/register` always creates the `user` role. Run `create_admin.py` again with a different email any time to add another admin, or with an existing email to promote/reset it.
+
 ---
 
 ## Usage
 
-```bash
-python rag.py
-```
-
-Then open `http://localhost:7860` in your browser.
-
-1. Upload a PDF using the left panel
-2. Click **Process PDF** and wait for indexing to complete
-3. Type a question in the chat box and press Enter or click **Chat**
-
----
-
-## Share with Others (temporary link)
-
-To give a friend access without deploying to a server, use [ngrok](https://ngrok.com):
+Run the backend and frontend in two terminals:
 
 ```bash
-# Terminal 1 — run the app
-python rag.py
+# Terminal 1 — API (http://localhost:5000)
+python backend/app.py
 
-# Terminal 2 — expose it publicly
-ngrok http 7860
+# Terminal 2 — frontend dev server (http://localhost:5173)
+cd frontend
+npm run dev
 ```
 
-Ngrok prints a public URL (e.g. `https://abc123.ngrok-free.app`) that anyone can open.
+Open `http://localhost:5173`. The dev server proxies `/api/*` requests to the Flask backend, so both run on the same origin from the browser's perspective — no CORS setup needed in development.
 
----
-
-## Deploying to AWS (permanent)
-
-Rough outline for EC2 + Nginx + SSL setup with your own domain. This app is a local demo (single-process Gradio server, no auth, no persistent job queue) — for real public deployment, put it behind auth and keep the size/rate-limit env vars above set conservatively.
-
-1. Launch an EC2 `t3.medium` (Ubuntu 22.04)
-2. Assign an Elastic IP
-3. Point your domain's DNS A record to that IP
-4. Run the app as a systemd service
-5. Use Nginx as a reverse proxy on port 80/443
-6. Get a free SSL cert with `certbot`
-
----
-
-## Project Structure
-
-```
-.
-├── rag.py              # Main application
-├── requirements.txt    # Python dependencies
-├── .env                # Your API key (not committed)
-├── .gitignore
-└── data/               # ChromaDB vector store (not committed)
-```
+1. Log in with the admin account you created, or register a new account
+2. Drop a PDF into the document pane, or choose a file
+3. Once it says "Ready. Ask away.", type a question in the notes pane
+4. For a production build, run `npm run build` in `frontend/` and serve the resulting `frontend/dist/` alongside the API (they'll need to share an origin, or the API will need CORS enabled)
 
 ---
 
