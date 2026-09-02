@@ -1,0 +1,12 @@
+flask>=3.0
+langchain
+langchain-community
+langchain-chroma
+langchain-huggingface
+langchain-text-splitters
+chromadb
+sentence-transformers
+pymupdf
+gradio>=3.0
+openai
+python-dotenv

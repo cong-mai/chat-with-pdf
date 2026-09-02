@@ -1,0 +1,23 @@
+# Environment
+.env
+
+# Vector store data
+data/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Gradio
+.gradio/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
