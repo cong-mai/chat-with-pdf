@@ -1,5 +1,5 @@
 server {
-    listen 80;
+    listen ${PORT};
 
     location /api/ {
         proxy_pass http://${BACKEND_ORIGIN};

@@ -6,7 +6,8 @@ COPY . ./
 RUN npm run build
 
 FROM nginx:1.27-alpine
-ENV NGINX_ENVSUBST_FILTER=BACKEND_ORIGIN
+ENV NGINX_ENVSUBST_FILTER=BACKEND_ORIGIN|PORT
+ENV PORT=80
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
