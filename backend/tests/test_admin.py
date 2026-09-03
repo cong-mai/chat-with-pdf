@@ -48,6 +48,13 @@ def test_admin_can_deactivate_and_reactivate_user(client, make_user, auth_header
     )
     assert login_blocked.status_code == 400
 
+    # Two real login attempts in one test would otherwise trip the new
+    # per-IP login cooldown — clear it to isolate this test from that
+    # unrelated concern (covered separately in test_auth.py).
+    import backend.app as app_module
+
+    app_module._last_login_time_by_ip.clear()
+
     on = client.patch(
         f"/api/admin/users/{target['id']}",
         json={"active": True},

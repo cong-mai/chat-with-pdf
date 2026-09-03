@@ -70,6 +70,73 @@ def test_me_returns_current_user(client, make_user, auth_header):
     assert res.get_json()["user"]["email"] == "me@example.com"
 
 
+def test_login_rate_limited_by_ip(client, make_user):
+    make_user("throttle1@example.com", password="password123")
+    first = client.post(
+        "/api/auth/login", json={"email": "throttle1@example.com", "password": "password123"}
+    )
+    second = client.post(
+        "/api/auth/login", json={"email": "throttle1@example.com", "password": "password123"}
+    )
+    assert first.status_code == 200
+    assert second.status_code == 429
+
+
+def test_login_rate_limit_blocks_regardless_of_credentials(client, make_user):
+    """Even a wrong-password retry should be throttled — the limit exists to
+    slow brute-force attempts, so it must not distinguish good vs. bad
+    credentials."""
+    make_user("throttle2@example.com", password="password123")
+    client.post("/api/auth/login", json={"email": "throttle2@example.com", "password": "wrong"})
+    second = client.post(
+        "/api/auth/login", json={"email": "throttle2@example.com", "password": "password123"}
+    )
+    assert second.status_code == 429
+
+
+def test_register_rate_limited_by_ip(client):
+    first = client.post(
+        "/api/auth/register", json={"email": "throttle3@example.com", "password": "password123"}
+    )
+    second = client.post(
+        "/api/auth/register", json={"email": "throttle4@example.com", "password": "password123"}
+    )
+    assert first.status_code == 200
+    assert second.status_code == 429
+
+
+def test_login_and_register_rate_limit_buckets_are_independent(client, make_user):
+    make_user("throttle5@example.com", password="password123")
+    login_res = client.post(
+        "/api/auth/login", json={"email": "throttle5@example.com", "password": "password123"}
+    )
+    register_res = client.post(
+        "/api/auth/register", json={"email": "throttle6@example.com", "password": "password123"}
+    )
+    assert login_res.status_code == 200
+    assert register_res.status_code != 429
+
+
+def test_login_allowed_again_after_cooldown_elapses(client, make_user, monkeypatch):
+    import backend.app as app_module
+
+    make_user("throttle7@example.com", password="password123")
+    first = client.post(
+        "/api/auth/login", json={"email": "throttle7@example.com", "password": "password123"}
+    )
+    assert first.status_code == 200
+
+    # Werkzeug's test client defaults REMOTE_ADDR to 127.0.0.1.
+    future = app_module._last_login_time_by_ip["127.0.0.1"]
+    monkeypatch.setattr(
+        app_module.time, "monotonic", lambda: future + app_module.MIN_SECONDS_BETWEEN_AUTH_REQUESTS + 1
+    )
+    second = client.post(
+        "/api/auth/login", json={"email": "throttle7@example.com", "password": "password123"}
+    )
+    assert second.status_code == 200
+
+
 def test_me_rejects_deactivated_users_session_immediately(client, make_user, auth_header):
     """A token issued while active must stop working the moment the account
     is deactivated server-side — not just on the next login."""

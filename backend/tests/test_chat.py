@@ -85,6 +85,62 @@ def test_chat_rate_limited_on_rapid_requests(client, make_user, auth_header, sam
     assert second.status_code == 429
 
 
+def test_chat_sends_system_instruction_and_fences_context(
+    client, make_user, auth_header, sample_pdf_bytes
+):
+    """Bug fix: retrieved CONTEXT must not be spliced directly into a bare
+    user message — a system message must instruct the model to treat it as
+    untrusted data, and CONTEXT must be clearly delimited from the QUESTION."""
+    import backend.app as app_module
+
+    user = make_user("injectioncheck@example.com")
+    file_id = _upload(client, auth_header, user, sample_pdf_bytes)
+
+    with patch.object(
+        app_module.openai_client.chat.completions, "create", return_value=_fake_completion()
+    ) as mock_create:
+        client.post(
+            "/api/chat",
+            json={"file_id": file_id, "message": "What color is the sky?"},
+            headers=auth_header(user["token"]),
+        )
+
+    messages = mock_create.call_args.kwargs["messages"]
+    assert messages[0]["role"] == "system"
+    assert "ignore" in messages[0]["content"].lower()
+    assert "instructions" in messages[0]["content"].lower()
+    assert messages[-1]["role"] == "user"
+    assert "CONTEXT" in messages[-1]["content"]
+    assert "QUESTION" in messages[-1]["content"]
+
+
+def test_chat_failure_returns_generic_error_and_logs_exception(
+    client, make_user, auth_header, sample_pdf_bytes, caplog
+):
+    """Bug fix: an OpenAI-call failure must not leak str(e) to the client and
+    must be logged server-side instead."""
+    import backend.app as app_module
+
+    user = make_user("chatnoleak@example.com")
+    file_id = _upload(client, auth_header, user, sample_pdf_bytes)
+
+    with patch.object(
+        app_module.openai_client.chat.completions,
+        "create",
+        side_effect=RuntimeError("distinct-marker-chat456"),
+    ):
+        with caplog.at_level("ERROR"):
+            res = client.post(
+                "/api/chat",
+                json={"file_id": file_id, "message": "What color is the sky?"},
+                headers=auth_header(user["token"]),
+            )
+
+    assert res.status_code == 500
+    assert "distinct-marker-chat456" not in res.get_json()["error"]
+    assert "distinct-marker-chat456" in caplog.text
+
+
 def test_chat_not_rate_limited_across_different_users(client, make_user, auth_header):
     import backend.app as app_module
     import fitz

@@ -113,3 +113,44 @@ def test_delete_nonexistent_document_returns_404(client, make_user, auth_header)
     user = make_user("deleter2@example.com")
     res = client.delete("/api/documents/does-not-exist", headers=auth_header(user["token"]))
     assert res.status_code == 404
+
+
+def test_upload_failure_leaves_no_orphaned_file_or_record(
+    client, make_user, auth_header, sample_pdf_bytes, monkeypatch
+):
+    """Bug fix: an indexing failure must not leave a PDF on disk with no
+    matching Mongo record (backend/app.py upload_document)."""
+    import backend.app as app_module
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("indexing exploded")
+
+    monkeypatch.setattr(app_module, "_chunk_documents", _boom)
+
+    user = make_user("orphancheck@example.com")
+    res = _upload(client, auth_header, user, sample_pdf_bytes)
+
+    assert res.status_code == 500
+    assert list(app_module.UPLOAD_DIR.iterdir()) == []
+    assert app_module.documents_col.count_documents({}) == 0
+
+
+def test_upload_failure_returns_generic_error_and_logs_exception(
+    client, make_user, auth_header, sample_pdf_bytes, monkeypatch, caplog
+):
+    """Bug fix: raw exception text must not reach the client; the full
+    exception must be logged server-side instead."""
+    import backend.app as app_module
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("distinct-marker-xyz789")
+
+    monkeypatch.setattr(app_module, "_chunk_documents", _boom)
+
+    user = make_user("noleak@example.com")
+    with caplog.at_level("ERROR"):
+        res = _upload(client, auth_header, user, sample_pdf_bytes)
+
+    assert res.status_code == 500
+    assert "distinct-marker-xyz789" not in res.get_json()["error"]
+    assert "distinct-marker-xyz789" in caplog.text

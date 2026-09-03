@@ -51,6 +51,8 @@ def _isolated_state(tmp_path, monkeypatch):
     app_module.users_col.delete_many({})
     app_module.documents_col.delete_many({})
     app_module._last_chat_time_by_user.clear()
+    app_module._last_login_time_by_ip.clear()
+    app_module._last_register_time_by_ip.clear()
 
     data_dir = tmp_path / "data"
     upload_dir = tmp_path / "uploads"
