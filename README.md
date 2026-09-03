@@ -37,11 +37,11 @@ A Retrieval-Augmented Generation (RAG) app that lets you upload a PDF and ask it
 .
 ├── backend/
 │   ├── app.py            # Flask API — auth, upload/index a PDF, answer questions
-│   └── create_admin.py   # CLI: create or promote an account to admin
+│   ├── create_admin.py   # CLI: create or promote an account to admin
+│   └── requirements.txt  # Python (backend) dependencies
 ├── frontend/             # React (Vite) UI
 │   ├── index.html
 │   └── src/
-├── requirements.txt      # Python (backend) dependencies
 ├── .env                  # Your API keys/secrets (not committed)
 ├── uploads/               # Uploaded PDFs (not committed)
 └── data/                  # ChromaDB vector store (not committed)
@@ -69,7 +69,7 @@ cd your-repo-name
 python -m venv .venv
 source .venv/bin/activate        # macOS / Linux
 .venv\Scripts\activate           # Windows
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # 3. Frontend: install Node deps
 cd frontend

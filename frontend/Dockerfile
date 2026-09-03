@@ -1,12 +1,12 @@
 FROM node:20-slim AS build
 WORKDIR /app
-COPY frontend/package*.json ./
+COPY package*.json ./
 RUN npm ci
-COPY frontend/ ./
+COPY . ./
 RUN npm run build
 
 FROM nginx:1.27-alpine
 ENV NGINX_ENVSUBST_FILTER=BACKEND_ORIGIN
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 EXPOSE 80
