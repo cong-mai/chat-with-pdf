@@ -501,10 +501,9 @@ diff <(python backend/eval/run_eval.py) <(python backend/eval/run_eval.py)   # e
 
 - [x] `pytest backend/tests -q` passes (0 failures), including all new tests from Steps 2-3 and 6.
       49/49 passing as of the Step 7 commit.
-- [ ] `.github/workflows/test.yml` shows a green run on GitHub after a push. Workflow committed and
-      its exact commands reproduced locally in a clean venv (44/49 tests passing at that point); not
-      yet verified against real GitHub Actions — requires `git push` to `origin`, held pending user
-      confirmation (pushing is a shared-state action).
+- [x] `.github/workflows/test.yml` shows a green run on GitHub after a push. Pushed to
+      `origin/master`; run https://github.com/cong-mai/chat-with-pdf/actions/runs/33794970417
+      completed with conclusion `success`.
 - [x] `docker compose up --build` config validates and the backend image builds successfully
       (confirmed via `docker compose config` and a full build reaching the backend stage). A
       complete `docker compose up` end-to-end run (all three services live, restart-persistence
