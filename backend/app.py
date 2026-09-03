@@ -360,6 +360,18 @@ def chat():
         if not results:
             return jsonify(answer=None, message="Nothing in the document answers that.")
 
+        sources = []
+        seen_pages = set()
+        for doc in results:
+            page = doc.metadata.get("page", 0) + 1  # PyMuPDF pages are 0-indexed
+            if page in seen_pages:
+                continue
+            seen_pages.add(page)
+            snippet = doc.page_content[:150]
+            if len(doc.page_content) > 150:
+                snippet += "…"
+            sources.append({"page": page, "snippet": snippet})
+
         context = "\n\n".join(doc.page_content for doc in results)
         system_prompt = (
             "You answer questions using only the CONTEXT block in the user message. "
@@ -384,7 +396,7 @@ def chat():
                 {"role": "user", "content": user_prompt},
             ],
         )
-        return jsonify(answer=response.choices[0].message.content)
+        return jsonify(answer=response.choices[0].message.content, sources=sources)
     except Exception:
         logger.exception("Chat request failed for file %s", file_id)
         return jsonify(error="Something went wrong. Please try again."), 500

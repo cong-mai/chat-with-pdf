@@ -132,7 +132,7 @@ export default function App() {
     try {
       const data = await askQuestion(doc.fileId, message, token)
       const text = data.answer ?? data.message ?? 'Nothing in the document answers that.'
-      setMessages((prev) => [...prev, { role: 'assistant', text }])
+      setMessages((prev) => [...prev, { role: 'assistant', text, sources: data.sources }])
     } catch (err) {
       if (handleAuthError(err)) return
       setMessages((prev) => [...prev, { role: 'assistant', text: err.message }])

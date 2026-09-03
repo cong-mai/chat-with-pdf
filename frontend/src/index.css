@@ -345,8 +345,31 @@ body {
   color: var(--stamp);
 }
 
+.note-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
 .note-text {
   line-height: 1.5;
+}
+
+.note-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.source-badge {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--pencil);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+  cursor: default;
 }
 
 @keyframes highlight-sweep {

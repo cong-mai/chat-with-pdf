@@ -141,6 +141,30 @@ def test_chat_failure_returns_generic_error_and_logs_exception(
     assert "distinct-marker-chat456" in caplog.text
 
 
+def test_chat_returns_deduped_source_citations(client, make_user, auth_header, sample_pdf_bytes):
+    import backend.app as app_module
+
+    user = make_user("citationcheck@example.com")
+    file_id = _upload(client, auth_header, user, sample_pdf_bytes)
+
+    with patch.object(
+        app_module.openai_client.chat.completions, "create", return_value=_fake_completion()
+    ):
+        res = client.post(
+            "/api/chat",
+            json={"file_id": file_id, "message": "What color is the sky?"},
+            headers=auth_header(user["token"]),
+        )
+
+    data = res.get_json()
+    assert "sources" in data
+    pages = [s["page"] for s in data["sources"]]
+    assert all(isinstance(p, int) and p >= 1 for p in pages)
+    assert len(pages) == len(set(pages))  # deduped
+    for s in data["sources"]:
+        assert isinstance(s["snippet"], str) and s["snippet"]
+
+
 def test_chat_not_rate_limited_across_different_users(client, make_user, auth_header):
     import backend.app as app_module
     import fitz

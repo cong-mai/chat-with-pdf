@@ -16,15 +16,26 @@ export default function NotesPanel({ messages, input, onInputChange, onSubmit, a
         {messages.map((m, i) => (
           <div key={i} className={`note note-${m.role}`}>
             <span className="note-marker">{m.role === 'user' ? 'Q' : 'A'}</span>
-            <span
-              className={
-                m.role === 'assistant' && i === messages.length - 1
-                  ? 'note-text note-text--reveal'
-                  : 'note-text'
-              }
-            >
-              {m.text}
-            </span>
+            <div className="note-body">
+              <span
+                className={
+                  m.role === 'assistant' && i === messages.length - 1
+                    ? 'note-text note-text--reveal'
+                    : 'note-text'
+                }
+              >
+                {m.text}
+              </span>
+              {m.role === 'assistant' && m.sources?.length > 0 && (
+                <div className="note-sources">
+                  {m.sources.map((s, si) => (
+                    <span key={si} className="source-badge" title={s.snippet}>
+                      p. {s.page}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
