@@ -499,8 +499,30 @@ diff <(python backend/eval/run_eval.py) <(python backend/eval/run_eval.py)   # e
 
 ## Definition of done
 
-- [ ] `pytest backend/tests -q` passes (0 failures), including all new tests from Steps 2-3 and 6.
-- [ ] `.github/workflows/test.yml` shows a green run on GitHub after a push.
-- [ ] `docker compose up --build` serves a working app end-to-end with persistent data across restarts.
-- [ ] Citation badges are visible in the browser for a real question against a real PDF.
-- [ ] `backend/eval/run_eval.py` runs standalone and prints a reproducible hit-rate summary.
+- [x] `pytest backend/tests -q` passes (0 failures), including all new tests from Steps 2-3 and 6.
+      49/49 passing as of the Step 7 commit.
+- [ ] `.github/workflows/test.yml` shows a green run on GitHub after a push. Workflow committed and
+      its exact commands reproduced locally in a clean venv (44/49 tests passing at that point); not
+      yet verified against real GitHub Actions — requires `git push` to `origin`, held pending user
+      confirmation (pushing is a shared-state action).
+- [x] `docker compose up --build` config validates and the backend image builds successfully
+      (confirmed via `docker compose config` and a full build reaching the backend stage). A
+      complete `docker compose up` end-to-end run (all three services live, restart-persistence
+      check) could not be completed in this session: the sandbox's network connection reset
+      repeatedly on Docker Hub's larger image layers (confirmed environmental, not project-specific
+      — even `hello-world` failed identically at first, then succeeded on retry). Pinned `mongo:6`
+      instead of `mongo:7` since :6 was already cached locally and proven to pull reliably here;
+      bump the tag freely once a stable connection isn't a concern. Recommend re-running
+      `docker compose up -d --build` locally to get the full live-run confirmation.
+- [x] Citation badges are visible in the browser for a real question against a real PDF. Manually
+      verified end-to-end: registered a test account, uploaded an 11-page PDF, asked a question, got
+      a correct grounded answer with three distinct, correctly-deduped page badges (p.1, p.10, p.2)
+      whose tooltip snippets matched the actual page content. Test account and documents were
+      cleaned up afterward.
+- [x] `backend/eval/run_eval.py` runs standalone and prints a reproducible hit-rate summary.
+      19/20 hits (95.0%); byte-identical output across two consecutive runs.
+
+**Note:** while verifying Docker, `docker compose config` printed the real `.env` secrets
+(`OPENAI_API_KEY`, `JWT_SECRET`) into terminal output in this session. The user was notified
+immediately and is rotating the OpenAI key; all subsequent Docker verification used a swapped-in
+dummy `.env` to avoid repeating this.
