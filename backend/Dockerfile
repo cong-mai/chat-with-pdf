@@ -9,4 +9,4 @@ COPY . backend/
 
 EXPOSE 5000
 
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "backend.app:app"]
+CMD ["gunicorn", "-b", "[::]:5000", "backend.app:app"]
