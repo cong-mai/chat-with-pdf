@@ -18,6 +18,47 @@ def test_register_duplicate_email_rejected(client, make_user):
     assert "already registered" in res.get_json()["error"]
 
 
+def test_register_failure_returns_generic_error_and_logs_exception(client, monkeypatch, caplog):
+    """A non-duplicate-key failure (e.g. a Mongo connectivity error) must not be
+    mislabeled as 'already registered' — it should log and return a generic 500."""
+    import backend.app as app_module
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("distinct-marker-register789")
+
+    monkeypatch.setattr(app_module.users_col, "insert_one", _boom)
+
+    with caplog.at_level("ERROR"):
+        res = client.post(
+            "/api/auth/register", json={"email": "boom@example.com", "password": "password123"}
+        )
+
+    assert res.status_code == 500
+    assert "already registered" not in res.get_json()["error"]
+    assert "distinct-marker-register789" not in res.get_json()["error"]
+    assert "distinct-marker-register789" in caplog.text
+
+
+def test_login_failure_returns_generic_error_and_logs_exception(client, make_user, monkeypatch, caplog):
+    make_user("loginboom@example.com", password="password123")
+    import backend.app as app_module
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("distinct-marker-login789")
+
+    monkeypatch.setattr(app_module.users_col, "find_one", _boom)
+
+    with caplog.at_level("ERROR"):
+        res = client.post(
+            "/api/auth/login",
+            json={"email": "loginboom@example.com", "password": "password123"},
+        )
+
+    assert res.status_code == 500
+    assert "distinct-marker-login789" not in res.get_json()["error"]
+    assert "distinct-marker-login789" in caplog.text
+
+
 def test_register_weak_password_rejected(client):
     res = client.post(
         "/api/auth/register", json={"email": "weak@example.com", "password": "short"}

@@ -12,6 +12,7 @@ import jwt
 from dotenv import load_dotenv
 from flask import Flask, abort, g, jsonify, request, send_file
 from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from langchain_chroma import Chroma
@@ -190,8 +191,11 @@ def register():
     }
     try:
         users_col.insert_one(user_doc)
-    except Exception:
+    except DuplicateKeyError:
         return jsonify(error="That email is already registered."), 400
+    except Exception:
+        logger.exception("Registration failed for %s", email)
+        return jsonify(error="Something went wrong. Please try again."), 500
 
     user = {"id": user_doc["_id"], "email": email, "role": "user"}
     return jsonify(token=_issue_token(user), user=user)
@@ -210,14 +214,18 @@ def login():
     email = (payload.get("email") or "").strip().lower()
     password = payload.get("password") or ""
 
-    user_doc = users_col.find_one({"email": email})
-    if not user_doc or not check_password_hash(user_doc["password_hash"], password):
-        return jsonify(error="Invalid email or password."), 400
-    if user_doc.get("active") is False:
-        return jsonify(error="This account has been deactivated."), 400
+    try:
+        user_doc = users_col.find_one({"email": email})
+        if not user_doc or not check_password_hash(user_doc["password_hash"], password):
+            return jsonify(error="Invalid email or password."), 400
+        if user_doc.get("active") is False:
+            return jsonify(error="This account has been deactivated."), 400
 
-    user = {"id": user_doc["_id"], "email": user_doc["email"], "role": user_doc["role"]}
-    return jsonify(token=_issue_token(user), user=user)
+        user = {"id": user_doc["_id"], "email": user_doc["email"], "role": user_doc["role"]}
+        return jsonify(token=_issue_token(user), user=user)
+    except Exception:
+        logger.exception("Login failed for %s", email)
+        return jsonify(error="Something went wrong. Please try again."), 500
 
 
 @app.get("/api/auth/me")
