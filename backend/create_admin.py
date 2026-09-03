@@ -49,6 +49,7 @@ def main():
             },
             "$setOnInsert": {
                 "_id": str(uuid.uuid4()),
+                "active": True,
                 "created_at": datetime.now(timezone.utc),
             },
         },

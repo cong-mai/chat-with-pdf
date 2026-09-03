@@ -58,6 +58,7 @@ db = mongo_client[MONGODB_DB_NAME]
 users_col = db["users"]
 documents_col = db["documents"]
 users_col.create_index("email", unique=True)
+documents_col.create_index("owner_id")
 
 app = Flask(__name__)
 
@@ -91,7 +92,24 @@ def require_auth(view):
             payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         except jwt.PyJWTError:
             return jsonify(error="Please log in."), 401
+
+        # Looked up per-request (not trusted from the token) so a deactivated
+        # account is locked out immediately, not just on its next login.
+        user_doc = users_col.find_one({"_id": payload["sub"]})
+        if not user_doc or user_doc.get("active") is False:
+            return jsonify(error="Please log in."), 401
+
         g.user = {"id": payload["sub"], "email": payload["email"], "role": payload["role"]}
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def require_admin(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if g.user["role"] != "admin":
+            return jsonify(error="Admins only."), 403
         return view(*args, **kwargs)
 
     return wrapped
@@ -140,6 +158,7 @@ def register():
         "email": email,
         "password_hash": generate_password_hash(password),
         "role": "user",
+        "active": True,
         "created_at": datetime.now(timezone.utc),
     }
     try:
@@ -160,6 +179,8 @@ def login():
     user_doc = users_col.find_one({"email": email})
     if not user_doc or not check_password_hash(user_doc["password_hash"], password):
         return jsonify(error="Invalid email or password."), 400
+    if user_doc.get("active") is False:
+        return jsonify(error="This account has been deactivated."), 400
 
     user = {"id": user_doc["_id"], "email": user_doc["email"], "role": user_doc["role"]}
     return jsonify(token=_issue_token(user), user=user)
@@ -228,6 +249,22 @@ def upload_document():
     )
 
 
+@app.get("/api/documents")
+@require_auth
+def list_documents():
+    docs = documents_col.find({"owner_id": g.user["id"]}).sort("created_at", -1)
+    return jsonify(documents=[
+        {
+            "file_id": doc["_id"],
+            "filename": doc["filename"],
+            "pages": doc["pages"],
+            "chunks": doc["chunks"],
+            "created_at": doc["created_at"].isoformat(),
+        }
+        for doc in docs
+    ])
+
+
 @app.get("/api/documents/<file_id>/file")
 @require_auth
 def get_document_file(file_id):
@@ -239,6 +276,22 @@ def get_document_file(file_id):
     if not path.is_file():
         abort(404)
     return send_file(path, mimetype="application/pdf")
+
+
+@app.delete("/api/documents/<file_id>")
+@require_auth
+def delete_document(file_id):
+    if not FILE_ID_RE.match(file_id):
+        abort(404)
+    if not documents_col.find_one({"_id": file_id, "owner_id": g.user["id"]}):
+        abort(404)
+
+    _vectorstore_for(file_id).delete_collection()
+    path = UPLOAD_DIR / f"{file_id}.pdf"
+    path.unlink(missing_ok=True)
+    documents_col.delete_one({"_id": file_id})
+
+    return jsonify(deleted=file_id)
 
 
 @app.post("/api/chat")
@@ -289,5 +342,58 @@ def chat():
         return jsonify(error=f"Something went wrong: {str(e)}"), 500
 
 
+@app.get("/api/admin/users")
+@require_auth
+@require_admin
+def list_users():
+    users = users_col.find().sort("created_at", -1)
+    return jsonify(users=[
+        {
+            "id": u["_id"],
+            "email": u["email"],
+            "role": u["role"],
+            "active": u.get("active") is not False,
+            "created_at": u["created_at"].isoformat(),
+        }
+        for u in users
+    ])
+
+
+@app.patch("/api/admin/users/<user_id>")
+@require_auth
+@require_admin
+def set_user_active(user_id):
+    payload = request.get_json(silent=True) or {}
+    if "active" not in payload or not isinstance(payload["active"], bool):
+        return jsonify(error="Provide a boolean 'active' value."), 400
+    active = payload["active"]
+
+    target = users_col.find_one({"_id": user_id})
+    if not target:
+        abort(404)
+
+    if not active:
+        if user_id == g.user["id"]:
+            return jsonify(error="You can't deactivate your own account."), 400
+        if target["role"] == "admin":
+            other_active_admins = users_col.count_documents({
+                "_id": {"$ne": user_id},
+                "role": "admin",
+                "active": {"$ne": False},
+            })
+            if other_active_admins == 0:
+                return jsonify(error="At least one active admin must remain."), 400
+
+    users_col.update_one({"_id": user_id}, {"$set": {"active": active}})
+    updated = users_col.find_one({"_id": user_id})
+    return jsonify(
+        id=updated["_id"],
+        email=updated["email"],
+        role=updated["role"],
+        active=updated.get("active") is not False,
+        created_at=updated["created_at"].isoformat(),
+    )
+
+
 if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+    app.run(port=5000, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")

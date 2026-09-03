@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import AdminPanel from './components/AdminPanel.jsx'
 import AuthPanel from './components/AuthPanel.jsx'
 import DocumentPanel from './components/DocumentPanel.jsx'
 import NotesPanel from './components/NotesPanel.jsx'
-import { askQuestion, fetchMe, uploadDocument } from './api.js'
+import { askQuestion, deleteDocument, fetchMe, listDocuments, uploadDocument } from './api.js'
 
 const TOKEN_KEY = 'reading_room_token'
 
@@ -10,7 +11,9 @@ export default function App() {
   const [token, setToken] = useState(null)
   const [user, setUser] = useState(null)
   const [checkingSession, setCheckingSession] = useState(true)
+  const [view, setView] = useState('desk')
 
+  const [documents, setDocuments] = useState([])
   const [doc, setDoc] = useState(null)
   const [status, setStatus] = useState('')
   const [messages, setMessages] = useState([])
@@ -34,6 +37,11 @@ export default function App() {
       .finally(() => setCheckingSession(false))
   }, [])
 
+  useEffect(() => {
+    if (!token) return
+    refreshDocuments()
+  }, [token])
+
   function handleAuthenticated(newToken, newUser) {
     localStorage.setItem(TOKEN_KEY, newToken)
     setToken(newToken)
@@ -44,6 +52,8 @@ export default function App() {
     localStorage.removeItem(TOKEN_KEY)
     setToken(null)
     setUser(null)
+    setView('desk')
+    setDocuments([])
     setDoc(null)
     setStatus('')
     setMessages([])
@@ -57,15 +67,47 @@ export default function App() {
     return false
   }
 
+  async function refreshDocuments() {
+    try {
+      const data = await listDocuments(token)
+      setDocuments(data.documents)
+    } catch (err) {
+      handleAuthError(err)
+    }
+  }
+
   async function handleFile(file) {
     setStatus('Reading the document…')
     try {
       const data = await uploadDocument(file, token)
       setDoc({ fileId: data.file_id, filename: data.filename, pages: data.pages })
+      setMessages([])
       setStatus('Ready. Ask away.')
+      refreshDocuments()
     } catch (err) {
       if (handleAuthError(err)) return
       setDoc(null)
+      setStatus(err.message)
+    }
+  }
+
+  function handleSelectDocument(entry) {
+    setDoc({ fileId: entry.file_id, filename: entry.filename, pages: entry.pages })
+    setMessages([])
+    setStatus('Ready. Ask away.')
+  }
+
+  async function handleDeleteDocument(fileId) {
+    try {
+      await deleteDocument(fileId, token)
+      if (doc?.fileId === fileId) {
+        setDoc(null)
+        setMessages([])
+        setStatus('')
+      }
+      refreshDocuments()
+    } catch (err) {
+      if (handleAuthError(err)) return
       setStatus(err.message)
     }
   }
@@ -111,6 +153,18 @@ export default function App() {
         {user && (
           <p className="session-line">
             Signed in as {user.email} ·{' '}
+            <button type="button" className="link-button" onClick={() => setView('desk')}>
+              Desk
+            </button>
+            {user.role === 'admin' && (
+              <>
+                {' · '}
+                <button type="button" className="link-button" onClick={() => setView('admin')}>
+                  Admin
+                </button>
+              </>
+            )}
+            {' · '}
             <button type="button" className="link-button" onClick={handleLogout}>
               Log out
             </button>
@@ -120,9 +174,19 @@ export default function App() {
 
       {!user ? (
         <AuthPanel onAuthenticated={handleAuthenticated} />
+      ) : view === 'admin' ? (
+        <AdminPanel token={token} onAuthError={handleAuthError} />
       ) : (
         <main className="desk">
-          <DocumentPanel doc={doc} status={status} onFile={handleFile} token={token} />
+          <DocumentPanel
+            doc={doc}
+            documents={documents}
+            status={status}
+            onFile={handleFile}
+            onSelectDocument={handleSelectDocument}
+            onDeleteDocument={handleDeleteDocument}
+            token={token}
+          />
           <NotesPanel
             messages={messages}
             input={input}

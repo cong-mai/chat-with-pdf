@@ -57,6 +57,33 @@ export async function askQuestion(fileId, message, token) {
   return parseOrThrow(res)
 }
 
+export async function listDocuments(token) {
+  const res = await fetch('/api/documents', { headers: authHeaders(token) })
+  return parseOrThrow(res)
+}
+
+export async function deleteDocument(fileId, token) {
+  const res = await fetch(`/api/documents/${fileId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  })
+  return parseOrThrow(res)
+}
+
+export async function listUsers(token) {
+  const res = await fetch('/api/admin/users', { headers: authHeaders(token) })
+  return parseOrThrow(res)
+}
+
+export async function setUserActive(userId, active, token) {
+  const res = await fetch(`/api/admin/users/${userId}`, {
+    method: 'PATCH',
+    headers: { ...JSON_HEADERS, ...authHeaders(token) },
+    body: JSON.stringify({ active }),
+  })
+  return parseOrThrow(res)
+}
+
 // <iframe src> can't send an Authorization header, so the PDF preview is
 // fetched with the token and shown via an object URL instead.
 export async function fetchDocumentBlobUrl(fileId, token) {
