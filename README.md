@@ -99,8 +99,7 @@ MIN_SECONDS_BETWEEN_AUTH_REQUESTS=2
 FLASK_DEBUG=false
 ```
 
-A `.env.example` with these same variables (placeholder values) is checked into the repo — copy it
-to `.env` and fill in your own secrets.
+Copy the variable names above into a new `.env` file and fill in your own secrets.
 
 > **Never commit your `.env` file.** It is already listed in `.gitignore`.
 

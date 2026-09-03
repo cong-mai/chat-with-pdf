@@ -1,6 +1,6 @@
 # Environment
 .env
-
+.env.example
 # Vector store data
 data/
 
@@ -28,3 +28,5 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+.claude
