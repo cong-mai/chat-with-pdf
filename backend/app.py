@@ -12,6 +12,8 @@ import jwt
 from dotenv import load_dotenv
 from flask import Flask, abort, g, jsonify, request, send_file
 from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from langchain_chroma import Chroma
@@ -26,9 +28,14 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-UPLOAD_DIR = BASE_DIR / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
-DATA_DIR = BASE_DIR / "data"
+# Defaults to BASE_DIR (today's behavior) when unset. Set to a single mounted
+# volume path in production (e.g. Railway, which allows only one volume per
+# service) so both persisted directories below live under one mount point.
+PERSIST_DIR = Path(os.getenv("PERSIST_DIR", str(BASE_DIR)))
+UPLOAD_DIR = PERSIST_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = PERSIST_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE_MB = float(os.getenv("MAX_FILE_SIZE_MB", "20"))
 MIN_SECONDS_BETWEEN_CHATS = float(os.getenv("MIN_SECONDS_BETWEEN_CHATS", "2"))
@@ -71,6 +78,10 @@ users_col.create_index("email", unique=True)
 documents_col.create_index("owner_id")
 
 app = Flask(__name__)
+# Backend is never publicly exposed — nginx is the only thing that ever
+# connects to it, both in docker-compose and on Railway's private network —
+# so trusting exactly one proxy hop for the client's real IP is correct.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=0, x_host=0, x_port=0, x_prefix=0)
 
 FILE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{3,60}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -190,8 +201,11 @@ def register():
     }
     try:
         users_col.insert_one(user_doc)
-    except Exception:
+    except DuplicateKeyError:
         return jsonify(error="That email is already registered."), 400
+    except Exception:
+        logger.exception("Registration failed for %s", email)
+        return jsonify(error="Something went wrong. Please try again."), 500
 
     user = {"id": user_doc["_id"], "email": email, "role": "user"}
     return jsonify(token=_issue_token(user), user=user)
@@ -210,14 +224,18 @@ def login():
     email = (payload.get("email") or "").strip().lower()
     password = payload.get("password") or ""
 
-    user_doc = users_col.find_one({"email": email})
-    if not user_doc or not check_password_hash(user_doc["password_hash"], password):
-        return jsonify(error="Invalid email or password."), 400
-    if user_doc.get("active") is False:
-        return jsonify(error="This account has been deactivated."), 400
+    try:
+        user_doc = users_col.find_one({"email": email})
+        if not user_doc or not check_password_hash(user_doc["password_hash"], password):
+            return jsonify(error="Invalid email or password."), 400
+        if user_doc.get("active") is False:
+            return jsonify(error="This account has been deactivated."), 400
 
-    user = {"id": user_doc["_id"], "email": user_doc["email"], "role": user_doc["role"]}
-    return jsonify(token=_issue_token(user), user=user)
+        user = {"id": user_doc["_id"], "email": user_doc["email"], "role": user_doc["role"]}
+        return jsonify(token=_issue_token(user), user=user)
+    except Exception:
+        logger.exception("Login failed for %s", email)
+        return jsonify(error="Something went wrong. Please try again."), 500
 
 
 @app.get("/api/auth/me")
