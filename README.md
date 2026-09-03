@@ -95,7 +95,12 @@ MONGODB_DB_NAME=reading_room
 JWT_EXPIRES_HOURS=24
 MAX_FILE_SIZE_MB=20
 MIN_SECONDS_BETWEEN_CHATS=2
+MIN_SECONDS_BETWEEN_AUTH_REQUESTS=2
+FLASK_DEBUG=false
 ```
+
+A `.env.example` with these same variables (placeholder values) is checked into the repo — copy it
+to `.env` and fill in your own secrets.
 
 > **Never commit your `.env` file.** It is already listed in `.gitignore`.
 

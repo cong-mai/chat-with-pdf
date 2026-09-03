@@ -152,6 +152,16 @@ def _chunk_documents(documents, source_id: str):
     return chunks
 
 
+@app.get("/api/health")
+def health():
+    try:
+        mongo_client.admin.command("ping")
+    except Exception:
+        logger.exception("Health check: Mongo ping failed")
+        return jsonify(status="error"), 503
+    return jsonify(status="ok")
+
+
 @app.post("/api/auth/register")
 def register():
     now = time.monotonic()
