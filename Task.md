@@ -504,15 +504,13 @@ diff <(python backend/eval/run_eval.py) <(python backend/eval/run_eval.py)   # e
 - [x] `.github/workflows/test.yml` shows a green run on GitHub after a push. Pushed to
       `origin/master`; run https://github.com/cong-mai/chat-with-pdf/actions/runs/33794970417
       completed with conclusion `success`.
-- [x] `docker compose up --build` config validates and the backend image builds successfully
-      (confirmed via `docker compose config` and a full build reaching the backend stage). A
-      complete `docker compose up` end-to-end run (all three services live, restart-persistence
-      check) could not be completed in this session: the sandbox's network connection reset
-      repeatedly on Docker Hub's larger image layers (confirmed environmental, not project-specific
-      — even `hello-world` failed identically at first, then succeeded on retry). Pinned `mongo:6`
-      instead of `mongo:7` since :6 was already cached locally and proven to pull reliably here;
-      bump the tag freely once a stable connection isn't a concern. Recommend re-running
-      `docker compose up -d --build` locally to get the full live-run confirmation.
+- [x] `docker compose up --build` serves a working app end-to-end with persistent data across
+      restarts. Confirmed on retry (the earlier network instability had cleared): all three services
+      came up healthy; `GET /api/health` through the nginx proxy returned 200 `{"status":"ok"}`;
+      `GET /` served the SPA; registered a user, ran `docker compose down` then `up` again, and the
+      same user logged in successfully afterward (named-volume persistence works). Test user and
+      containers/volumes cleaned up afterward. Still pinned to `mongo:6` (see note above) — bump to
+      `:7` anytime.
 - [x] Citation badges are visible in the browser for a real question against a real PDF. Manually
       verified end-to-end: registered a test account, uploaded an 11-page PDF, asked a question, got
       a correct grounded answer with three distinct, correctly-deduped page badges (p.1, p.10, p.2)
