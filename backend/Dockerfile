@@ -12,4 +12,4 @@ COPY . backend/
 
 EXPOSE 5000
 
-CMD ["gunicorn", "-b", "[::]:5000", "backend.app:app"]
+CMD ["gunicorn", "-b", "[::]:5000", "--timeout", "300", "backend.app:app"]
