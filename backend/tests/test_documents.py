@@ -78,7 +78,7 @@ def test_delete_document_removes_it(client, make_user, auth_header, sample_pdf_b
     upload_res = _upload(client, auth_header, user, sample_pdf_bytes)
     file_id = upload_res.get_json()["file_id"]
 
-    pdf_path = app_module.UPLOAD_DIR / f"{file_id}.pdf"
+    pdf_path = app_module.config.UPLOAD_DIR / f"{file_id}.pdf"
     assert pdf_path.is_file()
 
     del_res = client.delete(f"/api/documents/{file_id}", headers=auth_header(user["token"]))
@@ -125,13 +125,13 @@ def test_upload_failure_leaves_no_orphaned_file_or_record(
     def _boom(*args, **kwargs):
         raise RuntimeError("indexing exploded")
 
-    monkeypatch.setattr(app_module, "_chunk_documents", _boom)
+    monkeypatch.setattr(app_module.rag, "_chunk_documents", _boom)
 
     user = make_user("orphancheck@example.com")
     res = _upload(client, auth_header, user, sample_pdf_bytes)
 
     assert res.status_code == 500
-    assert list(app_module.UPLOAD_DIR.iterdir()) == []
+    assert list(app_module.config.UPLOAD_DIR.iterdir()) == []
     assert app_module.documents_col.count_documents({}) == 0
 
 
@@ -145,7 +145,7 @@ def test_upload_failure_returns_generic_error_and_logs_exception(
     def _boom(*args, **kwargs):
         raise RuntimeError("distinct-marker-xyz789")
 
-    monkeypatch.setattr(app_module, "_chunk_documents", _boom)
+    monkeypatch.setattr(app_module.rag, "_chunk_documents", _boom)
 
     user = make_user("noleak@example.com")
     with caplog.at_level("ERROR"):

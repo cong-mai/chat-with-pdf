@@ -7,7 +7,7 @@ Usage:
 import os
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -50,7 +50,7 @@ def main():
             "$setOnInsert": {
                 "_id": str(uuid.uuid4()),
                 "active": True,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
             },
         },
         upsert=True,

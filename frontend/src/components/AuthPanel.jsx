@@ -62,7 +62,7 @@ export default function AuthPanel({ onAuthenticated }) {
             setError('')
           }}
         >
-          {mode === 'login' ? "Need an account? Create one" : 'Already have one? Log in'}
+          {mode === 'login' ? 'Need an account? Create one' : 'Already have one? Log in'}
         </button>
       </form>
     </div>

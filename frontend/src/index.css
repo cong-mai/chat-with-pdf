@@ -279,7 +279,9 @@ body {
   cursor: pointer;
   color: var(--ink-muted);
   font-size: 0.95rem;
-  transition: border-color 120ms ease, color 120ms ease;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .dropzone:hover,

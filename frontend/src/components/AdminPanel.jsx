@@ -68,11 +68,7 @@ export default function AdminPanel({ token, onAuthError }) {
                 <td>{u.active ? 'Active' : 'Deactivated'}</td>
                 <td>{new Date(u.created_at).toLocaleDateString()}</td>
                 <td>
-                  <button
-                    type="button"
-                    onClick={() => handleToggle(u)}
-                    disabled={busyId === u.id}
-                  >
+                  <button type="button" onClick={() => handleToggle(u)} disabled={busyId === u.id}>
                     {u.active ? 'Deactivate' : 'Reactivate'}
                   </button>
                 </td>

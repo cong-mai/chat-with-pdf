@@ -13,10 +13,8 @@ export default function DocumentPanel({
   const [previewUrl, setPreviewUrl] = useState(null)
 
   useEffect(() => {
-    if (!doc) {
-      setPreviewUrl(null)
-      return
-    }
+    if (!doc) return undefined
+
     let objectUrl = null
     let cancelled = false
     fetchDocumentBlobUrl(doc.fileId, token).then((url) => {
@@ -29,6 +27,7 @@ export default function DocumentPanel({
     })
     return () => {
       cancelled = true
+      setPreviewUrl(null)
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [doc, token])

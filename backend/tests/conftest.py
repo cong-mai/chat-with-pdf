@@ -11,6 +11,8 @@ os.environ.setdefault("MONGODB_URI", "mongodb://localhost/test")
 os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("MIN_SECONDS_BETWEEN_CHATS", "2")
 
+from datetime import UTC
+
 import mongomock
 import pytest
 
@@ -57,8 +59,8 @@ def _isolated_state(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     upload_dir = tmp_path / "uploads"
     upload_dir.mkdir()
-    monkeypatch.setattr(app_module, "DATA_DIR", data_dir)
-    monkeypatch.setattr(app_module, "UPLOAD_DIR", upload_dir)
+    monkeypatch.setattr(app_module.config, "DATA_DIR", data_dir)
+    monkeypatch.setattr(app_module.config, "UPLOAD_DIR", upload_dir)
 
     yield
 
@@ -73,7 +75,7 @@ def client():
 def make_user():
     """Insert a user directly into the (mocked) users collection."""
     import uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from werkzeug.security import generate_password_hash
 
@@ -84,7 +86,7 @@ def make_user():
             "password_hash": generate_password_hash(password),
             "role": role,
             "active": active,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         }
         app_module.users_col.insert_one(user_doc)
         token = app_module._issue_token(
